@@ -7,6 +7,7 @@ Firefox extension prototype for sequentially downloading attachments visible in 
 - Inclusive start and end dates (dates are read from the attachment message text as `DD.MM.YYYY`).
 - Filename exclusion, defaulting to `ЗАЛ` (case-insensitive).
 - Sequential downloads, configurable delay, and a cooldown after a configurable number of successful files.
+- Uses the site's own download button when MAX does not expose a direct file URL, then waits for Firefox to report completion.
 - Progress checkpoint in Firefox extension storage; cooldown expiry reloads the tab and continues from unprocessed message keys.
 - Failed downloads and skipped filenames are kept in the run state and can be exported as JSON from the popup.
 
@@ -20,7 +21,7 @@ Temporary add-ons are removed when Firefox closes; install again to resume. The 
 
 ## Save location
 
-The folder field is a subfolder under Firefox's configured Downloads directory. Firefox WebExtensions reject absolute save paths. Select the desired base Downloads folder in Firefox settings first. Choosing any arbitrary system folder from an extension requires a separately installed native helper.
+The folder field is a subfolder under Firefox's configured Downloads directory for direct URL downloads. Firefox WebExtensions reject absolute save paths. Select the desired base Downloads folder in Firefox settings first. When MAX only exposes its own click-to-download control, Firefox saves that site-initiated download according to Firefox's current download settings. Choosing any arbitrary system folder from the extension requires a separately installed native helper.
 
 ## Important prototype limitation
 
