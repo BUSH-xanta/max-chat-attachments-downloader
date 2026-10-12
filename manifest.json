@@ -1,0 +1,29 @@
+{
+  "manifest_version": 2,
+  "name": "MAX Chat Attachments Downloader",
+  "version": "0.1.0",
+  "description": "Sequentially saves chat attachments in a date range, with checkpoints, cooldowns, and a filename exclusion filter.",
+  "permissions": ["activeTab", "downloads", "storage", "alarms", "tabs", "https://web.max.ru/*"],
+  "browser_action": {
+    "default_title": "Скачать вложения MAX",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://web.max.ru/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "max-chat-attachments-downloader@example.invalid",
+      "strict_min_version": "109.0"
+    }
+  }
+}
+
