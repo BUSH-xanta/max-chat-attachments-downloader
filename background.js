@@ -40,6 +40,44 @@ async function downloadDirect(item, settings) {
   });
 }
 
+function downloadBySiteClick(tabId, item) {
+  return new Promise(resolve => {
+    let downloadId = null;
+    let settled = false;
+    const timeout = setTimeout(() => finish({ error: "MAX не начал загрузку после нажатия; проверьте карточку файла." }), 120000);
+    const finish = result => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      api.downloads.onCreated.removeListener(onCreated);
+      api.downloads.onChanged.removeListener(onChanged);
+      resolve(result);
+    };
+    const onCreated = download => {
+      if (downloadId !== null) return;
+      const fromTab = download.tabId === tabId;
+      const referrerMatches = String(download.referrer || "").startsWith("https://web.max.ru/");
+      if (!fromTab && !referrerMatches) return;
+      downloadId = download.id;
+      api.downloads.search({ id: downloadId }).then(items => {
+        const current = items[0];
+        if (current?.state === "complete") finish({ ok: true, filename: current.filename });
+        else if (current?.state === "interrupted") finish({ error: current.error || "Загрузка прервана" });
+      });
+    };
+    const onChanged = delta => {
+      if (delta.id !== downloadId) return;
+      if (delta.state?.current === "complete") finish({ ok: true });
+      if (delta.state?.current === "interrupted") finish({ error: delta.error?.current || "Загрузка прервана" });
+    };
+    api.downloads.onCreated.addListener(onCreated);
+    api.downloads.onChanged.addListener(onChanged);
+    api.tabs.sendMessage(tabId, { type: "CLICK_ITEM", key: item.key }).then(result => {
+      if (result?.error) finish({ error: result.error });
+    }).catch(error => finish({ error: error.message || "Нет связи со страницей MAX" }));
+  });
+}
+
 async function run(tabId, settings) {
   if (worker) return;
   worker = true;
@@ -47,6 +85,8 @@ async function run(tabId, settings) {
   const tab = await api.tabs.get(tabId).catch(() => null);
   const scope = tab?.url || String(tabId);
   if (state.scope && state.scope !== scope) state = { running: false, successCount: 0, failures: [], processed: {}, excluded: {}, failed: {}, skipped: 0 };
+  // A new explicit run retries files from the previous run while keeping their old failure log.
+  state.failed = {};
   state.running = true;
   state.tabId = tabId;
   state.scope = scope;
@@ -93,7 +133,10 @@ async function run(tabId, settings) {
       state.currentItem = { name: candidate.name, date: candidate.date };
       state.lastCheckpoint = key;
       await putState(state);
-      const result = await downloadDirect(candidate, settings);
+      const previousSuccessCount = state.successCount || 0;
+      const result = candidate.url && /^https?:/i.test(candidate.url)
+        ? await downloadDirect(candidate, settings)
+        : await downloadBySiteClick(tabId, candidate);
       if (result.ok) {
         state.processed[key] = { name: candidate.name, date: candidate.date, savedAt: Date.now() };
         state.successCount = (state.successCount || 0) + 1;
@@ -106,7 +149,7 @@ async function run(tabId, settings) {
       state.currentItem = null;
       await putState(state);
       await send(tabId, { type: "ADVANCE" });
-      if (state.successCount > 0 && state.successCount % Math.max(1, Number(settings.every) || 30) === 0) {
+      if (state.successCount > previousSuccessCount && state.successCount % Math.max(1, Number(settings.every) || 30) === 0) {
         state.cooldownUntil = Date.now() + Math.max(1, Number(settings.cooldown) || 5) * 60000;
         await putState(state);
       } else {
