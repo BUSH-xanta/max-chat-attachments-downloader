@@ -3,6 +3,7 @@
   window.__maxDownloaderInstalled = true;
   let phase = "seekStart";
   let stableBoundaryPasses = 0;
+  let lastBoundaryDate = null;
 
   const parseDate = text => {
     const m = String(text).match(/\b(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})\b/);
@@ -15,10 +16,38 @@
       lines.find(s => /Заявка\b/i.test(s)) || null;
   };
   function findScroller() {
-    return [...document.querySelectorAll("*")].filter(el => {
-      const style = getComputedStyle(el);
-      return el.scrollHeight > el.clientHeight + 80 && /(auto|scroll)/.test(style.overflowY);
-    }).sort((a, b) => b.clientHeight - a.clientHeight)[0] || document.scrollingElement;
+    const controls = [...document.querySelectorAll("a,button,[role=button]")].filter(el =>
+      /скачать|download/i.test(`${el.innerText || ""} ${el.getAttribute("aria-label") || ""} ${el.title || ""}`)
+    );
+    const candidates = new Map();
+    for (const control of controls) {
+      let node = control.parentElement;
+      for (let depth = 0; node && depth < 12; depth++, node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (node.scrollHeight > node.clientHeight + 80 && /(auto|scroll)/.test(style.overflowY)) {
+          const rect = node.getBoundingClientRect();
+          const score = (rect.left > innerWidth * 0.25 ? 1000 : 0) + node.clientHeight + Math.min(node.clientWidth, 1200) / 4;
+          const previous = candidates.get(node) || { count: 0, score };
+          candidates.set(node, { count: previous.count + 1, score: Math.max(previous.score, score) });
+        }
+      }
+    }
+    const selected = [...candidates.entries()].sort((a, b) =>
+      (b[1].count * 10000 + b[1].score) - (a[1].count * 10000 + a[1].score)
+    )[0]?.[0];
+    return selected || document.scrollingElement;
+  }
+
+  function requestOlderMessages(scroller) {
+    const oldTop = scroller.scrollTop;
+    scroller.scrollTop = 0;
+    scroller.dispatchEvent(new Event("scroll", { bubbles: true }));
+    if (Math.abs(oldTop) < 2) {
+      scroller.scrollTop = 1;
+      scroller.dispatchEvent(new Event("scroll", { bubbles: true }));
+      scroller.scrollTop = 0;
+      scroller.dispatchEvent(new Event("scroll", { bubbles: true }));
+    }
   }
   function collect() {
     const controls = [...document.querySelectorAll("a,button,[role=button]")];
@@ -72,16 +101,15 @@
     // Reloads usually return MAX to the latest messages. Seek older history until
     // the requested start date is visible, then traverse toward newer messages.
     if (phase === "seekStart" && earliest && earliest > from) {
-      if (scroller.scrollTop > 0) {
-        scroller.scrollTop = 0;
-        return new Promise(resolve => setTimeout(() => resolve({ retry: true }), 1800));
-      }
+      if (earliest !== lastBoundaryDate) { lastBoundaryDate = earliest; stableBoundaryPasses = 0; }
+      requestOlderMessages(scroller);
       stableBoundaryPasses++;
-      if (stableBoundaryPasses < 4) return new Promise(resolve => setTimeout(() => resolve({ retry: true }), 1800));
+      if (stableBoundaryPasses < 20) return new Promise(resolve => setTimeout(() => resolve({ retry: true }), 1800));
       return Promise.resolve({ error: `Не удалось найти начало периода ${from} в истории чата. Остановка, чтобы не пропустить файлы.` });
     } else if (earliest && earliest <= from) {
       phase = "forward";
       stableBoundaryPasses = 0;
+      lastBoundaryDate = null;
     }
 
     for (const item of filtered) {
