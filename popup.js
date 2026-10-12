@@ -1,12 +1,31 @@
 const fields = ["from", "to", "folder", "delay", "every", "cooldown", "exclude"];
 const defaults = { from: "", to: "", folder: "MAX", delay: 3, every: 30, cooldown: 5, exclude: "ЗАЛ" };
 
+async function updateStatus() {
+  const { runState } = await browser.storage.local.get("runState");
+  const status = document.getElementById("status");
+  if (!runState) { status.textContent = "Откройте чат MAX с вложениями."; return; }
+  if (runState.fatalError) { status.textContent = `Остановка: ${runState.fatalError}`; return; }
+  if (runState.cooldownUntil && Date.now() < runState.cooldownUntil) {
+    status.textContent = `Cooldown до ${new Date(runState.cooldownUntil).toLocaleTimeString()}. Успешно: ${runState.successCount || 0}; ошибок: ${runState.failures?.length || 0}`;
+    return;
+  }
+  if (runState.running) {
+    const item = runState.currentItem ? `Скачивает: ${runState.currentItem.name}` : "Ищет вложения в чате…";
+    status.textContent = `${item} Успешно: ${runState.successCount || 0}; пропущено: ${runState.skipped || 0}; ошибок: ${runState.failures?.length || 0}`;
+    return;
+  }
+  if (runState.finishedAt) {
+    status.textContent = `Готово. Успешно: ${runState.successCount || 0}; пропущено: ${runState.skipped || 0}; ошибок: ${runState.failures?.length || 0}`;
+    return;
+  }
+  status.textContent = "Остановлено. Прогресс сохранён.";
+}
+
 async function load() {
-  const { settings = defaults, runState } = await browser.storage.local.get(["settings", "runState"]);
+  const { settings = defaults } = await browser.storage.local.get(["settings"]);
   for (const id of fields) document.getElementById(id).value = settings[id] ?? defaults[id];
-  if (runState?.running) document.getElementById("status").textContent = runState.cooldownUntil
-    ? `Cooldown до ${new Date(runState.cooldownUntil).toLocaleTimeString()}`
-    : `В работе. Успешно: ${runState.successCount || 0}; ошибок: ${runState.failures?.length || 0}`;
+  await updateStatus();
 }
 
 async function saveSettings() {
@@ -26,7 +45,8 @@ document.getElementById("start").addEventListener("click", async () => {
   }
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   const result = await browser.runtime.sendMessage({ type: "START", tabId: tab.id, settings });
-  document.getElementById("status").textContent = result?.error || "Запуск принят.";
+  document.getElementById("status").textContent = result?.error || "Запуск принят; проверяю состояние…";
+  await updateStatus();
 });
 
 document.getElementById("stop").addEventListener("click", async () => {
@@ -43,4 +63,5 @@ document.getElementById("export").addEventListener("click", async () => {
 });
 
 load();
+setInterval(updateStatus, 1000);
 
