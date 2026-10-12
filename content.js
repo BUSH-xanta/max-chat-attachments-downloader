@@ -81,7 +81,21 @@
     return [...unique.values()].sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name, "ru"));
   }
 
+  function itemKey(item) {
+    return item.identity ? `${item.date}|${item.identity}|${item.name}` : `${item.date}|${item.name}`;
+  }
+
   browser.runtime.onMessage.addListener(message => {
+    if (message.type === "CLICK_ITEM") {
+      const item = collect().find(entry => itemKey(entry) === message.key);
+      if (!item) return Promise.resolve({ error: "Карточка файла исчезла до нажатия; обновите чат и продолжите." });
+      try {
+        item.control.click();
+        return Promise.resolve({ ok: true });
+      } catch (error) {
+        return Promise.resolve({ error: error.message || "Не удалось нажать кнопку скачивания MAX." });
+      }
+    }
     if (message.type === "ADVANCE") {
       const scroller = findScroller();
       scroller.scrollTop = Math.min(scroller.scrollTop + Math.max(150, scroller.clientHeight * 0.65), scroller.scrollHeight);
@@ -113,7 +127,7 @@
     }
 
     for (const item of filtered) {
-      const key = item.identity ? `${item.date}|${item.identity}|${item.name}` : `${item.date}|${item.name}`;
+      const key = itemKey(item);
       if (message.processed?.[key] || message.excluded?.[key] || message.failed?.[key]) continue;
       const anchor = item.control.closest("a[href]");
       const url = anchor?.href || item.control.getAttribute("href") || item.control.dataset?.url || null;
