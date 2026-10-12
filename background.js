@@ -51,6 +51,9 @@ async function run(tabId, settings) {
   state.tabId = tabId;
   state.scope = scope;
   state.settings = settings;
+  state.startedAt = Date.now();
+  state.fatalError = null;
+  state.currentItem = null;
   await putState(state);
   try {
     while ((state = await getState()).running) {
@@ -87,6 +90,9 @@ async function run(tabId, settings) {
         await send(tabId, { type: "ADVANCE" });
         continue;
       }
+      state.currentItem = { name: candidate.name, date: candidate.date };
+      state.lastCheckpoint = key;
+      await putState(state);
       const result = await downloadDirect(candidate, settings);
       if (result.ok) {
         state.processed[key] = { name: candidate.name, date: candidate.date, savedAt: Date.now() };
@@ -97,6 +103,7 @@ async function run(tabId, settings) {
         state.failed = state.failed || {};
         state.failed[key] = { name: candidate.name, date: candidate.date, reason: result.error };
       }
+      state.currentItem = null;
       await putState(state);
       await send(tabId, { type: "ADVANCE" });
       if (state.successCount > 0 && state.successCount % Math.max(1, Number(settings.every) || 30) === 0) {
@@ -111,7 +118,14 @@ async function run(tabId, settings) {
 
 api.runtime.onMessage.addListener((message, sender) => {
   if (message.type === "START") {
-    return run(message.tabId, { ...DEFAULTS, ...message.settings }).then(() => ({ ok: true }), error => ({ error: error.message }));
+    run(message.tabId, { ...DEFAULTS, ...message.settings }).catch(async error => {
+      const state = await getState();
+      state.running = false;
+      state.currentItem = null;
+      state.fatalError = error.message;
+      await putState(state);
+    });
+    return Promise.resolve({ ok: true });
   }
   if (message.type === "STOP") return getState().then(async state => { state.running = false; await putState(state); return { ok: true }; });
   if (message.type === "STATUS") return getState();
