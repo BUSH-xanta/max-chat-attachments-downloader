@@ -7,7 +7,7 @@ Firefox extension prototype for sequentially downloading attachments visible in 
 - Inclusive start and end dates (dates are read from the attachment message text as `DD.MM.YYYY`).
 - Filename exclusion, defaulting to `ЗАЛ` (case-insensitive).
 - Sequential downloads, configurable delay, and a cooldown after a configurable number of successful files.
-- Progress checkpoint in Firefox extension storage; cooldown expiry reloads the tab and continues from unprocessed date/name keys.
+- Progress checkpoint in Firefox extension storage; cooldown expiry reloads the tab and continues from unprocessed message keys.
 - Failed downloads and skipped filenames are kept in the run state and can be exported as JSON from the popup.
 
 ## Install for local development
@@ -24,7 +24,7 @@ The folder field is a subfolder under Firefox's configured Downloads directory. 
 
 ## Important prototype limitation
 
-MAX's chat interface can change its DOM and can virtualize older messages. This prototype discovers download controls and dates from rendered message text and uses date plus filename as its checkpoint key. It is intended for adapter validation against the actual signed-in MAX page. Duplicate filenames on the same date can be ambiguous, and a site change can prevent discovery or direct download. Before a long run, validate on a short date range and inspect the saved run state. Cooldown resumes after a page reload; expired login or missing history stops reliable continuation.
+MAX's chat interface can change its DOM and can virtualize older messages. This prototype discovers download controls and dates from rendered message text and uses a message identifier when MAX exposes one, otherwise date plus filename. It is intended for adapter validation against the actual signed-in MAX page. Duplicate filenames on the same date can be ambiguous, and a site change can prevent discovery or direct download. Before a long run, validate on a short date range and inspect the popup's live status. Cooldown resumes after a page reload; expired login or missing history stops reliable continuation.
 
 ## Log
 
