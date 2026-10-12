@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Загрузка MAX</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <h1>Загрузка вложений MAX</h1>
+    <label>С даты <input id="from" type="date"></label>
+    <label>По дату включительно <input id="to" type="date"></label>
+    <label>Папка внутри «Загрузок» <input id="folder" type="text" value="MAX" maxlength="80"></label>
+    <label>Пауза между файлами, секунд <input id="delay" type="number" min="1" max="120" value="3"></label>
+    <label>Cooldown после N файлов <input id="every" type="number" min="1" max="500" value="30"></label>
+    <label>Длительность cooldown, минут <input id="cooldown" type="number" min="1" max="240" value="5"></label>
+    <label>Исключать название, содержащее <input id="exclude" type="text" value="ЗАЛ" maxlength="80"></label>
+    <div class="buttons">
+      <button id="start" class="primary">Начать / продолжить</button>
+      <button id="stop">Остановить</button>
+      <button id="export">Журнал</button>
+    </div>
+    <p id="status" role="status">Откройте чат MAX с вложениями.</p>
+    <p class="hint">Папка выбирается относительно стандартной папки загрузок Firefox.</p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
+
